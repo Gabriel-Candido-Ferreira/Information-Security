@@ -1,53 +1,62 @@
+import base64
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives import hashes
 
-private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=4096
-)
+def gerar_chaves():
+    print("🔐 Gerando chaves RSA (pública e privada)...\n")
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    print("✅ Chaves geradas com sucesso! (2048 bits)\n")
+    return private_key, public_key
 
-public_key = private_key.public_key()
-
-with open("chave_privada.pem", "wb") as f:
-    f.write(
-        private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
+def criptografar_mensagem(mensagem: bytes, public_key):
+    print("🔒 Criptografando a mensagem...\n")
+    mensagem_cripto = public_key.encrypt(
+        mensagem,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
         )
     )
+    print("✅ Mensagem criptografada com sucesso!")
+    print("📦 Conteúdo criptografado (parcial):", mensagem_cripto[:60], "...\n")
+    return mensagem_cripto
 
-with open("chave_publica.pem", "wb") as f:
-    f.write(
-        public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+def descriptografar_mensagem(mensagem_cripto: bytes, private_key):
+    print("🔓 Descriptografando a mensagem...\n")
+    mensagem_original = private_key.decrypt(
+        mensagem_cripto,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
         )
     )
+    print("✅ Mensagem descriptografada com sucesso!\n")
+    return mensagem_original
 
-print("✅ Chaves RSA geradas e salvas em arquivos .pem")
+def salvar_em_txt(mensagem_cripto: bytes, caminho_arquivo: str):
+    b64 = base64.b64encode(mensagem_cripto).decode("ascii")
+    with open(caminho_arquivo, "w", encoding="utf-8") as f:
+        f.write(b64)
+    print(f"💾 Conteúdo criptografado salvo em (base64): {caminho_arquivo}\n")
 
-mensagem = b"Segredo importante: o código RSA está funcionando!"
-mensagem_criptografada = public_key.encrypt(
-    mensagem,
-    padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
-        label=None
-    )
-)
+def main():
+    private_key, public_key = gerar_chaves()
 
-print("\n🔐 Mensagem criptografada:")
-print(mensagem_criptografada)
+    mensagem = b"Transferencia de R$1000 aprovada"
+    print("📩 Mensagem original:", mensagem.decode(), "\n")
 
-mensagem_original = private_key.decrypt(
-    mensagem_criptografada,
-    padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
-        label=None
-    )
-)
+    mensagem_cripto = criptografar_mensagem(mensagem, public_key)
 
-print("\n🔓 Mensagem descriptografada:")
-print(mensagem_original.decode())
+    caminho = "mensagem_cripto.txt"
+    salvar_em_txt(mensagem_cripto, caminho)
+
+    mensagem_recuperada = descriptografar_mensagem(mensagem_cripto, private_key)
+    print("📨 Mensagem final recuperada:")
+    print(mensagem_recuperada.decode())
+
+
+if __name__ == "__main__":
+    main()
